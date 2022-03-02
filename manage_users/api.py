@@ -1,20 +1,37 @@
 from grafana_api.grafana_face import GrafanaFace
-from class_types import User, Team
+from grafana_api.grafana_api import GrafanaException
+from manage_users.models import User, Team
+from typing import Dict
 import logging
 
-
-def make_member(grafana_api: GrafanaFace, user: User):
-    user = grafana_api.admin.create_user(user)
+_LOG = logging.getLogger(__name__)
 
 
-def make_team(grafana_api: GrafanaFace, team: Team):
+def authenticate(host: str, username: str, password: str) -> GrafanaFace:
+    _LOG.info(f'User {username} initiated auth to {host}')
+    return GrafanaFace(auth=(username, password), host=host)
+
+
+def create_member(grafana_api: GrafanaFace, user: User) -> Dict:
+    try:
+        user = grafana_api.admin.create_user(user)
+    except GrafanaException as ge:
+        _LOG.exception("Create member failed")
+        raise ge
+    return user
+
+
+def create_team(grafana_api: GrafanaFace, team: Team) -> Dict:
     response = grafana_api.teams.add_team(team)
     if response["message"] == "Team created":
-        return response["teamId"]
-    return -1
+        _LOG.info(f"Created the team: {team['name']} with team_id: {response['teamId']}")
+        return response
+    _LOG.error("Team creation failed", extra=response)
+    raise GrafanaException(999, response, "Team creation failed for some unknown reason")
 
 
 def add_member_to_team(grafana_api: GrafanaFace, user_id: str, team_id: int):
+    _LOG.info(f"Added member: {user_id} to team {team_id}")
     return grafana_api.teams.add_team_member(team_id, user_id)
 
 
