@@ -43,8 +43,12 @@ def get_team_by_id(grafana_api: GrafanaFace, team_id: int):
 
 
 def add_member_to_team(grafana_api: GrafanaFace, user_id: str, team_id: int):
-    _LOG.info(f"Added member: {user_id} to team {team_id}")
-    return grafana_api.teams.add_team_member(team_id, user_id)
+    response = grafana_api.teams.add_team_member(team_id, user_id)
+    if response["message"] == "Member added to Team":
+        _LOG.info(f"Added member: {user_id} to team {team_id}")
+        return response
+    _LOG.error("Adding member failed", extra=response)
+    raise GrafanaException(999, response, "Member was not added to team")
 
 
 def get_team_members_by_team_id(grafana_api: GrafanaFace, team_id: int):
@@ -53,3 +57,7 @@ def get_team_members_by_team_id(grafana_api: GrafanaFace, team_id: int):
 
 def get_member_by_id(grafana_api: GrafanaFace, user_id: int):
     return grafana_api.users.get_user(user_id)
+
+
+def get_team_members(grafana_api: GrafanaFace, team_id:int):
+    return grafana_api.teams.get_team_members(team_id)

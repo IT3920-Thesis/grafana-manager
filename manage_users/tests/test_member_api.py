@@ -18,8 +18,8 @@ class MemberCases(unittest.TestCase):
         """
         self.MOCK_USER = get_mock_user()
 
-        self.mock_member = create_member(self.GRAFANA_API, self.MOCK_USER)
-        self.teardown_member_ids = [self.mock_member['id']]
+        self.mock_member_id = create_member(self.GRAFANA_API, self.MOCK_USER)['id']
+        self.teardown_member_ids = [self.mock_member_id]
 
     def tearDown(self) -> None:
         """
@@ -42,15 +42,15 @@ class MemberCases(unittest.TestCase):
             create_member(self.GRAFANA_API, self.MOCK_USER)
 
     def test_delete_member(self):
-        retrieved_mock_member = get_member_by_id(self.GRAFANA_API, self.mock_member['id'])
-        self.assertEqual(retrieved_mock_member['id'], self.mock_member['id'])
-        delete_member_by_id(self.GRAFANA_API, self.mock_member['id'])
+        retrieved_mock_member = get_member_by_id(self.GRAFANA_API, self.mock_member_id)
+        self.assertEqual(retrieved_mock_member['id'], self.mock_member_id)
+        delete_member_by_id(self.GRAFANA_API, self.mock_member_id)
         # remove from teardown_member_ids as it is already deleted
-        self.teardown_member_ids.remove(self.mock_member['id'])
+        self.teardown_member_ids.remove(self.mock_member_id)
 
         # test that member no longer is found in Grafana
         with self.assertRaises(GrafanaException):
-            get_member_by_id(self.GRAFANA_API, self.mock_member['id'])
+            get_member_by_id(self.GRAFANA_API, self.mock_member_id)
 
 
 if __name__ == '__main__':
