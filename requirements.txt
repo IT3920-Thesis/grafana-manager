@@ -1,2 +1,4 @@
 Faker==13.3.0
 grafana-api==1.0.3
+psycopg2==2.9.3
+python-dotenv==0.19.2

@@ -148,4 +148,5 @@ dmypy.json
 cython_debug/
 
 .idea/
-playground.ipynb
+playground*.ipynb
+.env
