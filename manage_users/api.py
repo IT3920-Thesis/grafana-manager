@@ -34,11 +34,21 @@ def get_all_users(grafana_api: GrafanaFace) -> List[Dict]:
 
 
 def delete_user_by_id(grafana_api: GrafanaFace, user_id: int):
-    grafana_api.admin.delete_user(user_id)
+    try:
+        grafana_api.admin.delete_user(user_id)
+        _LOG.info(f'User {user_id} deleted')
+    except GrafanaException as ge:
+        _LOG.exception("Delete user failed")
+        raise ge
 
 
 def delete_team_by_id(grafana_api: GrafanaFace, team_id: int):
-    grafana_api.teams.delete_team(team_id)
+    try:
+        grafana_api.teams.delete_team(team_id)
+        _LOG.info(f'Team {team_id} deleted')
+    except GrafanaException as ge:
+        _LOG.exception("Delete team failed")
+        raise ge
 
 
 def create_team(grafana_api: GrafanaFace, team: Team) -> Dict:
@@ -51,12 +61,18 @@ def create_team(grafana_api: GrafanaFace, team: Team) -> Dict:
 
 
 def get_team_by_id(grafana_api: GrafanaFace, team_id: int):
-    return grafana_api.teams.get_team(team_id)
+    try:
+        response = grafana_api.teams.get_team(team_id)
+        _LOG.info(f"Team {team_id} retrieved from ID")
+    except GrafanaException as ge:
+        _LOG.exception(f"Failed to get team {team_id} by id")
+        raise ge
+    return response
 
 
 def add_user_to_team(grafana_api: GrafanaFace, user_id: str, team_id: int):
     response = grafana_api.teams.add_team_member(team_id, user_id)
-    if response["message"] == "User added to Team":
+    if response["message"] == "Member added to Team":
         _LOG.info(f"Added user: {user_id} to team {team_id}")
         return response
     _LOG.error("Adding user failed", extra=response)
@@ -64,10 +80,22 @@ def add_user_to_team(grafana_api: GrafanaFace, user_id: str, team_id: int):
 
 
 def get_team_members_by_team_id(grafana_api: GrafanaFace, team_id: int):
-    return grafana_api.teams.get_team_members(team_id)
+    try:
+        response = grafana_api.teams.get_team_members(team_id)
+        _LOG.info(f"Team members from team {team_id} retrieved from team_id")
+    except GrafanaException as ge:
+        _LOG.exception(f"Failed to get team members from team {team_id} by team_id")
+        raise ge
+    return response
 
 
 def get_user_by_id(grafana_api: GrafanaFace, user_id: int):
-    return grafana_api.users.get_user(user_id)
+    try:
+        response = grafana_api.users.get_user(user_id)
+        _LOG.info(f"User {user_id} retrieved from user_id")
+    except GrafanaException as ge:
+        _LOG.exception(f"Failed to get user {user_id} by user_id")
+        raise ge
+    return response
 
 

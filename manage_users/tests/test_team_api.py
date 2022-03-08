@@ -1,6 +1,6 @@
 import unittest
 from manage_users.api import create_team, auth, get_team_by_id, delete_team_by_id, \
-    create_user, add_user_to_team, get_team_members, delete_user_by_id
+    create_user, add_user_to_team, get_team_members_by_team_id, delete_user_by_id
 from manage_users.mocks import get_mock_team, get_mock_user
 from grafana_api.grafana_api import GrafanaException
 
@@ -58,12 +58,12 @@ class TeamCases(unittest.TestCase):
             create_team(self.GRAFANA_API, self.MOCK_TEAM)
 
     def test_add_user_to_team(self):
-        team_members = get_team_members(self.GRAFANA_API, self.mock_team['teamId'])
+        team_members = get_team_members_by_team_id(self.GRAFANA_API, self.mock_team['teamId'])
         self.assertTrue(len(team_members) == 0, msg="There should not exist any members in the mocked team")
         response = add_user_to_team(self.GRAFANA_API, user_id=self.mock_user_id, team_id=self.mock_team['teamId'])
         self.assertEqual(response['message'], 'Member added to Team', msg="The response should confirm that a "
                                                                           "member has been added to the team")
-        new_team_members = get_team_members(self.GRAFANA_API, self.mock_team['teamId'])
+        new_team_members = get_team_members_by_team_id(self.GRAFANA_API, self.mock_team['teamId'])
         self.assertTrue(len(new_team_members) == 1)
         self.assertTrue(new_team_members[0]['userId'] == self.mock_user_id)
 
