@@ -11,5 +11,5 @@ class User(Dict):
 
 class Team(Dict):
     name: str
-    email: str
+    email: Optional[str] = None
     orgId: Optional[int] = None

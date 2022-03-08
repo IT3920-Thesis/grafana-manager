@@ -1,22 +1,22 @@
 import psycopg2
 from psycopg2.extensions import connection
 import logging
-from dotenv import dotenv_values
 from typing import List
 
-config = dotenv_values(".env")
 _LOG = logging.getLogger(__name__)
 
 
 def connect(dbname: str, user: str, host: str, password: str) -> connection:
     try:
-        return psycopg2.connect(f"dbname={dbname} user={user} host={host} password={password}")
+        conn = psycopg2.connect(f"dbname={dbname} user={user} host={host} password={password}")
+        _LOG.info(f"Connection to {dbname} established")
+        return conn
     except Exception as e:
         _LOG.exception("Could not connect to db")
         raise e
 
 
-def query_db_conn(conn: connection, query: str):
+def query_db_conn(conn: connection, query: str) -> List:
     try:
         curs = conn.cursor()
         try:
@@ -32,10 +32,10 @@ def query_db_conn(conn: connection, query: str):
 
 
 def get_authors_by_repo_id(conn: connection, repo_id: int) -> List:
-    query = f"SELECT DISTINCT(author_email) FROM changecontribution WHERE repository_id='{repo_id}';"
+    query = f"SELECT DISTINCT author_email FROM changecontribution WHERE repository_id='{repo_id}';"
     return query_db_conn(conn, query)
 
 
-conn = connect(dbname=config["DB_NAME"], user=config["DB_USER"], host=config["DB_HOST"], password=config["DB_HOST"])
-print(get_authors_by_repo_id(conn, 1021))
-
+def get_all_repositories(conn: connection) -> List:
+    query = f"SELECT DISTINCT group_id, repository_id FROM changecontribution;"
+    return query_db_conn(conn, query)
