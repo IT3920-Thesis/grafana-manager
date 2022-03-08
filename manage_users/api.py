@@ -1,7 +1,8 @@
 from grafana_api.grafana_face import GrafanaFace
 from grafana_api.grafana_api import GrafanaException
 from manage_users.models import User, Team
-from typing import Dict
+from typing import Dict, List
+import itertools
 import logging
 
 _LOG = logging.getLogger(__name__)
@@ -19,6 +20,17 @@ def create_user(grafana_api: GrafanaFace, user: User) -> Dict:
         _LOG.exception("Create user failed")
         raise ge
     return new_user
+
+
+def get_all_users(grafana_api: GrafanaFace) -> List[Dict]:
+    per_page = 1000
+    users = []
+    for n in itertools.count(start=1):
+        resp = grafana_api.users.search_users(query=None, perpage=per_page, page=n + 1)
+        if len(resp) == 0:
+            break
+        users.extend(resp)
+    return users
 
 
 def delete_user_by_id(grafana_api: GrafanaFace, user_id: int):
@@ -59,5 +71,3 @@ def get_user_by_id(grafana_api: GrafanaFace, user_id: int):
     return grafana_api.users.get_user(user_id)
 
 
-def get_team_members(grafana_api: GrafanaFace, team_id: int):
-    return grafana_api.teams.get_team_members(team_id)
