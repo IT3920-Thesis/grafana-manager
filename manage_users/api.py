@@ -12,16 +12,16 @@ def auth(host: str, username: str, password: str) -> GrafanaFace:
     return GrafanaFace(auth=(username, password), host=host)
 
 
-def create_member(grafana_api: GrafanaFace, user: User) -> Dict:
+def create_user(grafana_api: GrafanaFace, user: User) -> Dict:
     try:
-        member = grafana_api.admin.create_user(user)
+        new_user = grafana_api.admin.create_user(user)
     except GrafanaException as ge:
-        _LOG.exception("Create member failed")
+        _LOG.exception("Create user failed")
         raise ge
-    return member
+    return new_user
 
 
-def delete_member_by_id(grafana_api: GrafanaFace, user_id: int):
+def delete_user_by_id(grafana_api: GrafanaFace, user_id: int):
     grafana_api.admin.delete_user(user_id)
 
 
@@ -42,22 +42,22 @@ def get_team_by_id(grafana_api: GrafanaFace, team_id: int):
     return grafana_api.teams.get_team(team_id)
 
 
-def add_member_to_team(grafana_api: GrafanaFace, user_id: str, team_id: int):
+def add_user_to_team(grafana_api: GrafanaFace, user_id: str, team_id: int):
     response = grafana_api.teams.add_team_member(team_id, user_id)
-    if response["message"] == "Member added to Team":
-        _LOG.info(f"Added member: {user_id} to team {team_id}")
+    if response["message"] == "User added to Team":
+        _LOG.info(f"Added user: {user_id} to team {team_id}")
         return response
-    _LOG.error("Adding member failed", extra=response)
-    raise GrafanaException(999, response, "Member was not added to team")
+    _LOG.error("Adding user failed", extra=response)
+    raise GrafanaException(999, response, "User was not added to team")
 
 
 def get_team_members_by_team_id(grafana_api: GrafanaFace, team_id: int):
     return grafana_api.teams.get_team_members(team_id)
 
 
-def get_member_by_id(grafana_api: GrafanaFace, user_id: int):
+def get_user_by_id(grafana_api: GrafanaFace, user_id: int):
     return grafana_api.users.get_user(user_id)
 
 
-def get_team_members(grafana_api: GrafanaFace, team_id:int):
+def get_team_members(grafana_api: GrafanaFace, team_id: int):
     return grafana_api.teams.get_team_members(team_id)
