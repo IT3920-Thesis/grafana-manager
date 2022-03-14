@@ -1,51 +1,59 @@
-from manage_users.api.grafana import auth, create_user, create_team, add_user_to_team
-from manage_users.models import Team, User
-from manage_users.db_connector import connect, get_all_repositories, get_authors_by_repo_id
 import logging
 from typing import Dict
+
+import dotenv
+
+from manage_users.api.gitlab import auth as gitlab_auth
+from manage_users.api.gitlab import get_projects_and_members
+from manage_users.api.grafana import auth as grafana_auth
+from manage_users.api.grafana import create_user, create_team, add_user_to_team
+from manage_users.models import User, Team
 
 _LOG = logging.getLogger(__name__)
 
 
-def get_repos_and_authors() -> Dict:
-    conn = connect(dbname="gitlabstats", user="gitlabstats", host="localhost", password="somepassword")
+def retrieve_gitlab_data() -> Dict:
+    URL = "https://gitlab.stud.idi.ntnu.no/"
+    TOKEN = dotenv.get_key(".env", "GITLAB_ACCESS_TOKEN")
+    gl = gitlab_auth(URL, TOKEN)
 
-    try:
-        repos = dict()
-        for repo_name, repo_id in get_all_repositories(conn):
-            repo_authors = get_authors_by_repo_id(conn, repo_id)
-            repos[repo_id] = {
-                "name": repo_name,
-                "author_emails": repo_authors
-            }
+    # PARENT_GROUP_ID = 11911  # Mock project
+    PARENT_GROUP_ID = 1042    # IT2810-H2018
 
-        return repos
-    finally:
-        conn.close()
+    project_members = get_projects_and_members(gl, PARENT_GROUP_ID)
+    print(project_members)
+    return project_members
 
 
 def main() -> None:
+    projects_and_users = retrieve_gitlab_data()
 
-    GRAFANA_API = auth(host='localhost:3000', username="admin", password="admin")
-    repos = get_repos_and_authors()
-    for repo_id, repo in repos.items():
-        repo_name = repo['name']
-        authors = repo['author_emails']
+    # Stores a mapping from (username,name) in gitlab to the grafana userid
+    distinct_users = {}
+    # iterate through all projects and add users to disctinct_users
+    for ((_, _), users) in projects_and_users.items():
+        for user in users:
+            distinct_users[(user['username'], user['name'])] = None
 
-        grafana_team = create_team(GRAFANA_API, team=Team({
-            "name": f"{repo_name}-{repo_id}"
+    GRAFANA_API = grafana_auth(host='localhost:3000', username="admin", password="admin")
+
+    # create a user for each distinct user and update distinct_user value with grafana user_id
+    for username, name in distinct_users.keys():
+        new_user = create_user(GRAFANA_API, User({
+            "name": name,
+            "email": f"{username}@blablabla.com",
+            "password": "somepassword"
         }))
-        grafana_team_id = grafana_team['teamId']
+        distinct_users[(username, name)] = new_user['id']
 
-        for author in authors:
-            user = create_user(GRAFANA_API, User({
-                "name": author[0],
-                "email": author[0],
-                "password": "somepassword"
-            }))
-
-            user_id = user['id']
-            add_user_to_team(GRAFANA_API, user_id=user_id, team_id=grafana_team_id)
+    # stores a mapping from gitlab groups to the team_ids in Grafana
+    teams = {}
+    # create every project and add the correct users to the grafana team
+    for ((group_id, group_name), users) in projects_and_users.items():
+        new_team = create_team(GRAFANA_API, Team({"name": f"{group_name} [{group_id}]"}))
+        teams[group_id] = new_team['teamId']
+        for user in users:
+            add_user_to_team(GRAFANA_API, distinct_users[(user['username'], user['name'])], new_team['teamId'])
 
 
 if __name__ == "__main__":

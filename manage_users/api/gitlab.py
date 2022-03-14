@@ -1,10 +1,9 @@
+import logging
+from collections import defaultdict
 from typing import List, Dict
 
-import dotenv
 from gitlab import Gitlab
 from gitlab.v4.objects.projects import GroupProject
-
-import logging
 
 _LOG = logging.getLogger(__name__)
 
@@ -53,30 +52,11 @@ def get_projects_and_members(gl: Gitlab, parent_group_id: int) -> Dict:
     :param parent_group_id:
     :return: Dict of [project_id:int, project_name:str]=[{id:int, username:str, name:str}...]
     """
-    project_members = {}
+    project_members = defaultdict(list)
 
-    # get all projects
     for project in get_all_projects_by_parent_group_id(gl, parent_group_id):
-        # get all members in projects
         for member in get_members_by_project_id(gl, project.id):
-            project_members[(project.id, project.name)] = [
-                {"member_id": member.id, "username": member.username, "name": member.name}
-            ]
+            project_members[(project.id, project.name)].append(
+                {"member_id": member.id, "username": member.username, "name": member.name})
+
     return project_members
-
-
-# def main():
-#     URL = "https://gitlab.stud.idi.ntnu.no/"
-#     TOKEN = dotenv.get_key("../.env", "GITLAB_ACCESS_TOKEN")
-#
-#     PARENT_GROUP_ID = 11911     # Mock project
-#     # PARENT_GROUP_ID = 1042    # IT2810-H2018
-#
-#     gl = auth(URL, TOKEN)
-#     project_members = get_projects_and_members(gl, PARENT_GROUP_ID)
-#
-#     for item in project_members.items():
-#         print(item)
-#
-#
-# main()

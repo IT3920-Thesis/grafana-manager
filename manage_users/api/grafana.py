@@ -142,3 +142,8 @@ def delete_all_teams(grafana_api: GrafanaFace):
     for team in teams:
         delete_team_by_id(grafana_api, team["id"])
         _LOG.info(f"Deleted team: {team['id']}")
+
+
+# GRAFANA_API = auth(host='localhost:3000', username="admin", password="admin")
+# delete_all_non_admin_users(GRAFANA_API)
+# delete_all_teams(GRAFANA_API)
