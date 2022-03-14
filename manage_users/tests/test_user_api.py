@@ -1,7 +1,9 @@
 import unittest
-from manage_users.grafana_api import auth, create_user, delete_user_by_id, get_user_by_id
+from manage_users.api.grafana import auth, create_user, delete_user_by_id, get_user_by_id
 from manage_users.mocks import get_mock_user
 from grafana_api.grafana_api import GrafanaException
+
+from manage_users.models import User
 
 
 class UserCases(unittest.TestCase):
@@ -38,7 +40,8 @@ class UserCases(unittest.TestCase):
         self.teardown_user_ids.append(new_user['id'])
 
     def test_create_duplicate_user_throws_exception(self) -> None:
-        with self.assertRaises(GrafanaException):
+        print(self.teardown_user_ids)
+        with self.assertRaises(ValueError):
             create_user(self.GRAFANA_API, self.MOCK_USER)
 
     def test_delete_user(self):

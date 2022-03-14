@@ -1,11 +1,14 @@
-from grafana_api.grafana_face import GrafanaFace
-from grafana_api.grafana_api import GrafanaException
-from manage_users.models import User, Team
-from typing import Dict, List
 import itertools
 import logging
+from typing import Dict, List, Set
+
+from grafana_api.grafana_api import GrafanaException
+from grafana_api.grafana_face import GrafanaFace
+
+from manage_users.models import User, Team
 
 _LOG = logging.getLogger(__name__)
+cached_user_emails = set()
 
 
 def auth(host: str, username: str, password: str) -> GrafanaFace:
@@ -13,9 +16,23 @@ def auth(host: str, username: str, password: str) -> GrafanaFace:
     return GrafanaFace(auth=(username, password), host=host)
 
 
+def get_all_cached_users(grafana_api: GrafanaFace) -> Set:
+    global cached_user_emails
+    if len(cached_user_emails) == 0:
+        cached_user_emails = {user["email"] for user in get_all_users(grafana_api)}
+    return cached_user_emails
+
+
 def create_user(grafana_api: GrafanaFace, user: User) -> Dict:
     try:
-        new_user = grafana_api.admin.create_user(user)
+        user_emails = get_all_cached_users(grafana_api)
+        if user["email"] not in user_emails:
+            new_user = grafana_api.admin.create_user(user)
+            cached_user_emails.add(user["email"])
+        else:
+            _LOG.exception("Failed to create new user. Email already in use")
+            raise ValueError("Failed to create new user. Email already in use")
+
     except GrafanaException as ge:
         _LOG.exception("Create user failed")
         raise ge
@@ -26,7 +43,7 @@ def get_all_users(grafana_api: GrafanaFace) -> List[Dict]:
     per_page = 1000
     users = []
     for n in itertools.count(start=1):
-        resp = grafana_api.users.search_users(query=None, perpage=per_page, page=n + 1)
+        resp = grafana_api.users.search_users(query=None, perpage=per_page, page=n)
         if len(resp) == 0:
             break
         users.extend(resp)
@@ -97,5 +114,3 @@ def get_user_by_id(grafana_api: GrafanaFace, user_id: int):
         _LOG.exception(f"Failed to get user {user_id} by user_id")
         raise ge
     return response
-
-

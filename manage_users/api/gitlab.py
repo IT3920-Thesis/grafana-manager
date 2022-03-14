@@ -65,18 +65,18 @@ def get_projects_and_members(gl: Gitlab, parent_group_id: int) -> Dict:
     return project_members
 
 
-def main():
-    URL = "https://gitlab.stud.idi.ntnu.no/"
-    TOKEN = dotenv.get_key("./.env", "GITLAB_ACCESS_TOKEN")
-
-    PARENT_GROUP_ID = 11911     # Mock project
-    # PARENT_GROUP_ID = 1042    # IT2810-H2018
-
-    gl = auth(URL, TOKEN)
-    project_members = get_projects_and_members(gl, PARENT_GROUP_ID)
-
-    for item in project_members.items():
-        print(item)
-
-
-main()
+# def main():
+#     URL = "https://gitlab.stud.idi.ntnu.no/"
+#     TOKEN = dotenv.get_key("../.env", "GITLAB_ACCESS_TOKEN")
+#
+#     PARENT_GROUP_ID = 11911     # Mock project
+#     # PARENT_GROUP_ID = 1042    # IT2810-H2018
+#
+#     gl = auth(URL, TOKEN)
+#     project_members = get_projects_and_members(gl, PARENT_GROUP_ID)
+#
+#     for item in project_members.items():
+#         print(item)
+#
+#
+# main()
