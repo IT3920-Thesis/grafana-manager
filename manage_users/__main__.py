@@ -1,4 +1,4 @@
-from manage_users.api import auth, create_user, create_team, add_user_to_team
+from manage_users.grafana_api import auth, create_user, create_team, add_user_to_team
 from manage_users.models import Team, User
 from manage_users.db_connector import connect, get_all_repositories, get_authors_by_repo_id
 import logging

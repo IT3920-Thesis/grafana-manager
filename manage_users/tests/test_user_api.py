@@ -1,5 +1,5 @@
 import unittest
-from manage_users.api import auth, create_user, delete_user_by_id, get_user_by_id
+from manage_users.grafana_api import auth, create_user, delete_user_by_id, get_user_by_id
 from manage_users.mocks import get_mock_user
 from grafana_api.grafana_api import GrafanaException
 
