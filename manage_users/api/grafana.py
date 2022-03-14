@@ -77,6 +77,17 @@ def create_team(grafana_api: GrafanaFace, team: Team) -> Dict:
     raise GrafanaException(999, response, "Team creation failed for some unknown reason")
 
 
+def get_all_teams(grafana_api: GrafanaFace) -> List[Dict]:
+    per_page = 1000
+    teams = []
+    for n in itertools.count(start=1):
+        resp = grafana_api.teams.search_teams(query=None, perpage=per_page, page=n)
+        if len(resp) == 0:
+            break
+        teams.extend(resp)
+    return teams
+
+
 def get_team_by_id(grafana_api: GrafanaFace, team_id: int):
     try:
         response = grafana_api.teams.get_team(team_id)
@@ -117,7 +128,17 @@ def get_user_by_id(grafana_api: GrafanaFace, user_id: int):
 
 
 def delete_all_non_admin_users(grafana_api: GrafanaFace) -> None:
+    _LOG.warning("Initiated deletion of all non-admin users")
     users = get_all_users(grafana_api)
     for user in users:
         if user["isAdmin"] is False:
             delete_user_by_id(grafana_api, user['id'])
+        _LOG.info(f"Deleted user: {user['id']}")
+
+
+def delete_all_teams(grafana_api: GrafanaFace):
+    _LOG.warning("Initiated deletion of all teams")
+    teams = get_all_teams(grafana_api)
+    for team in teams:
+        delete_team_by_id(grafana_api, team["id"])
+        _LOG.info(f"Deleted team: {team['id']}")
