@@ -38,13 +38,12 @@ def main() -> None:
         grafana_team_id = grafana_team['teamId']
 
         for author in authors:
-            print(author[0])
             user = create_user(GRAFANA_API, User({
                 "name": author[0],
                 "email": author[0],
                 "password": "somepassword"
             }))
-            print(user)
+
             user_id = user['id']
             add_user_to_team(GRAFANA_API, user_id=user_id, team_id=grafana_team_id)
 
