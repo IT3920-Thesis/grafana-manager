@@ -114,3 +114,10 @@ def get_user_by_id(grafana_api: GrafanaFace, user_id: int):
         _LOG.exception(f"Failed to get user {user_id} by user_id")
         raise ge
     return response
+
+
+def delete_all_non_admin_users(grafana_api: GrafanaFace) -> None:
+    users = get_all_users(grafana_api)
+    for user in users:
+        if user["isAdmin"] is False:
+            delete_user_by_id(grafana_api, user['id'])
