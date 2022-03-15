@@ -3,8 +3,6 @@ from manage_users.api.grafana import auth, create_user, delete_user_by_id, get_u
 from manage_users.mocks import get_mock_user
 from grafana_api.grafana_api import GrafanaException
 
-from manage_users.models import User
-
 
 class UserCases(unittest.TestCase):
 
