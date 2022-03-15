@@ -18,19 +18,19 @@ def retrieve_gitlab_data(url, token, parent_group_id) -> Dict:
     return project_members
 
 
-def generate_grafana_users(grafana_api, users: Dict[User]) -> Dict:
+def generate_grafana_users(grafana_api, users: Dict[str, User]) -> Dict:
     generated_users = {}
     for username, user in users.items():
-        print(user)
-        new_user = create_user(grafana_api, User({**user}))
+        new_user = create_user(grafana_api, User(**user))
         generated_users[username] = {**user, 'grafana_id': new_user['id']}
     return generated_users
+
 
 def main() -> None:
     URL = "https://gitlab.stud.idi.ntnu.no/"
     TOKEN = dotenv.get_key(".env", "GITLAB_ACCESS_TOKEN")
-    # PARENT_GROUP_ID = 11911  # Mock project
-    PARENT_GROUP_ID = 1042    # IT2810-H2018
+    PARENT_GROUP_ID = 11911  # Mock project
+    # PARENT_GROUP_ID = 1042    # IT2810-H2018
 
     projects_and_users = retrieve_gitlab_data(URL, TOKEN, PARENT_GROUP_ID)
 
@@ -54,12 +54,9 @@ def main() -> None:
     # create a user for each distinct user and get mapping from username to the user_id in grafana
     grafana_users = generate_grafana_users(GRAFANA_API, distinct_users)
 
-    # stores a mapping from gitlab group_ids to the team_ids in Grafana
-    teams = {}
     # create every project and add the correct users to the grafana team
     for ((group_id, group_name), users) in projects_and_users.items():
         new_team = create_team(GRAFANA_API, Team({"name": f"{group_name} [{group_id}]"}))
-        teams[group_id] = new_team['teamId']
         # Add all users to the team
         for user in users:
             username = user['username']

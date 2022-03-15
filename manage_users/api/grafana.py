@@ -98,7 +98,7 @@ def get_team_by_id(grafana_api: GrafanaFace, team_id: int):
     return response
 
 
-def add_user_to_team(grafana_api: GrafanaFace, user_id: str, team_id: int):
+def add_user_to_team(grafana_api: GrafanaFace, user_id: int, team_id: int):
     response = grafana_api.teams.add_team_member(team_id, user_id)
     if response["message"] == "Member added to Team":
         _LOG.info(f"Added user: {user_id} to team {team_id}")
