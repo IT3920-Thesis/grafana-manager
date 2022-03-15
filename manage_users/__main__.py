@@ -12,48 +12,59 @@ from manage_users.models import User, Team
 _LOG = logging.getLogger(__name__)
 
 
-def retrieve_gitlab_data() -> Dict:
-    URL = "https://gitlab.stud.idi.ntnu.no/"
-    TOKEN = dotenv.get_key(".env", "GITLAB_ACCESS_TOKEN")
-    gl = gitlab_auth(URL, TOKEN)
-
-    # PARENT_GROUP_ID = 11911  # Mock project
-    PARENT_GROUP_ID = 1042    # IT2810-H2018
-
-    project_members = get_projects_and_members(gl, PARENT_GROUP_ID)
-    print(project_members)
+def retrieve_gitlab_data(url, token, parent_group_id) -> Dict:
+    gl = gitlab_auth(url, token)
+    project_members = get_projects_and_members(gl, parent_group_id)
     return project_members
 
 
-def main() -> None:
-    projects_and_users = retrieve_gitlab_data()
+def generate_grafana_users(grafana_api, users: Dict[User]) -> Dict:
+    generated_users = {}
+    for username, user in users.items():
+        print(user)
+        new_user = create_user(grafana_api, User({**user}))
+        generated_users[username] = {**user, 'grafana_id': new_user['id']}
+    return generated_users
 
-    # Stores a mapping from (username,name) in gitlab to the grafana userid
+def main() -> None:
+    URL = "https://gitlab.stud.idi.ntnu.no/"
+    TOKEN = dotenv.get_key(".env", "GITLAB_ACCESS_TOKEN")
+    # PARENT_GROUP_ID = 11911  # Mock project
+    PARENT_GROUP_ID = 1042    # IT2810-H2018
+
+    projects_and_users = retrieve_gitlab_data(URL, TOKEN, PARENT_GROUP_ID)
+
+    # Stores a mapping from username in gitlab to the grafana userid
     distinct_users = {}
+
     # iterate through all projects and add users to disctinct_users
-    for ((_, _), users) in projects_and_users.items():
+    # NTNU student mail inferred from gitlab username. When students have changed gitlab username it can cause problems
+    for users in projects_and_users.values():
         for user in users:
-            distinct_users[(user['username'], user['name'])] = None
+            username = user['username']
+            distinct_users[username] = User({
+                'name': user['name'],
+                'login': username,
+                'password': 'somepassword',
+                'email': f'{username}@stud.ntnu.no'
+            })
 
     GRAFANA_API = grafana_auth(host='localhost:3000', username="admin", password="admin")
 
-    # create a user for each distinct user and update distinct_user value with grafana user_id
-    for username, name in distinct_users.keys():
-        new_user = create_user(GRAFANA_API, User({
-            "name": name,
-            "email": f"{username}@blablabla.com",
-            "password": "somepassword"
-        }))
-        distinct_users[(username, name)] = new_user['id']
+    # create a user for each distinct user and get mapping from username to the user_id in grafana
+    grafana_users = generate_grafana_users(GRAFANA_API, distinct_users)
 
-    # stores a mapping from gitlab groups to the team_ids in Grafana
+    # stores a mapping from gitlab group_ids to the team_ids in Grafana
     teams = {}
     # create every project and add the correct users to the grafana team
     for ((group_id, group_name), users) in projects_and_users.items():
         new_team = create_team(GRAFANA_API, Team({"name": f"{group_name} [{group_id}]"}))
         teams[group_id] = new_team['teamId']
+        # Add all users to the team
         for user in users:
-            add_user_to_team(GRAFANA_API, distinct_users[(user['username'], user['name'])], new_team['teamId'])
+            username = user['username']
+            user_id = grafana_users[username]['grafana_id']
+            add_user_to_team(GRAFANA_API, user_id, new_team['teamId'])
 
 
 if __name__ == "__main__":
