@@ -60,3 +60,6 @@ def get_projects_and_members(gl: Gitlab, parent_group_id: int) -> Dict:
                 {"member_id": member.id, "username": member.username, "name": member.name})
 
     return project_members
+
+
+get_subgroup_ids_by_parent_group_id()

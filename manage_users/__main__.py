@@ -38,18 +38,17 @@ def generate_grafana_users(grafana_api: GrafanaFace, gitlab_projects_and_users) 
 
 
 def generate_folders_and_assign_privileges(grafana_api: GrafanaFace, grafana_teams):
-    for team_identifier, team_dict in grafana_teams.items():
-        new_folder = create_folder(grafana_api, team_identifier)
+    for group_name, team_dict in grafana_teams.items():
+        new_folder = create_folder(grafana_api, group_name)
         give_team_folder_read_rights(grafana_api, new_folder['uid'], team_dict['team_id'])
-        grafana_teams[team_identifier] = {**team_dict, "folder_uid": new_folder['uid']}
+        grafana_teams[group_name] = {**team_dict, "folder_uid": new_folder['uid']}
     return grafana_teams
 
 
 def generate_teams_and_assign_users(grafana_api: GrafanaFace, gitlab_projects_and_users, grafana_users) -> Dict:
     teams = {}
     for ((group_id, group_name), users) in gitlab_projects_and_users.items():
-        team_identifier = f"{group_name} [{group_id}]"
-        new_team = create_team(grafana_api, Team({"name": team_identifier}))
+        new_team = create_team(grafana_api, Team({"name": group_name}))
 
         team_members = []
         # Add all users to the team
@@ -61,12 +60,10 @@ def generate_teams_and_assign_users(grafana_api: GrafanaFace, gitlab_projects_an
                 "username": username,
                 "user_id": user_id
             })
-        teams[team_identifier] = {
+        teams[group_name] = {
             "team_id": new_team['teamId'],
-            # "folder_uid": new_folder['uid'],
             "members": team_members,
-            "gitlab_group_id": group_id,
-            "group_name": group_name
+            "gitlab_group_id": group_id
         }
 
     return teams
@@ -75,8 +72,8 @@ def generate_teams_and_assign_users(grafana_api: GrafanaFace, gitlab_projects_an
 def main() -> None:
     URL = "https://gitlab.stud.idi.ntnu.no/"
     TOKEN = dotenv.get_key("../.env", "GITLAB_ACCESS_TOKEN")
-    # PARENT_GROUP_ID = 11911  # Mock project
-    PARENT_GROUP_ID = 1042  # IT2810-H2018
+    PARENT_GROUP_ID = 11911  # Mock project
+    # PARENT_GROUP_ID = 1042  # IT2810-H2018
 
     GRAFANA_API = grafana_auth(host='localhost:3000', username="admin", password="admin")
 

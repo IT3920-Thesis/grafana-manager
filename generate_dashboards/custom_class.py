@@ -1,4 +1,4 @@
-from grafanalib.core import Panel
+from grafanalib.core import Panel, Dashboard
 
 
 class BarChart(Panel):
@@ -10,6 +10,16 @@ class BarChart(Panel):
     [0]: https://grafana.com/docs/grafana/latest/visualizations/bar-chart/
     [1]: https://github.com/weaveworks/grafanalib/blob/4a33bbb3b0a9dc069b7b343f4b83074969f92dc7/grafanalib/core.py
     """
+    def to_json_data(self):
+        barchart = self.panel_json(
+            {
+                'type': 'barchart',
+            }
+        )
+        return barchart
+
+
+class FolderSpecificDashboard(Dashboard):
     def to_json_data(self):
         barchart = self.panel_json(
             {
