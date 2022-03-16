@@ -56,12 +56,6 @@ def main():
     for folder in all_folders:
         json_dashboard = get_folder_specific_json_dashboard(folder['uid'], folder['title'])
         upload_to_grafana(json_dashboard, SERVER, API_KEY, verify=True)
-    # print(all_folders)
-
-    #
-    # json_dashboard = get_folder_specific_json_dashboard(dashboard, grafana_folder_uid="HEPr4cEnk", gitlab_group_name=)
-    # print(json_dashboard)
-    # upload_to_grafana(json_dashboard, SERVER, API_KEY, verify=True)
 
 
 if __name__ == "__main__":

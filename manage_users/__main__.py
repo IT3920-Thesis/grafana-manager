@@ -5,7 +5,7 @@ import dotenv
 from grafana_api.grafana_face import GrafanaFace
 
 from manage_users.api.gitlab import auth as gitlab_auth
-from manage_users.api.gitlab import get_projects_and_members
+from manage_users.api.gitlab import get_groups_and_members
 from manage_users.api.grafana import auth as grafana_auth
 from manage_users.api.grafana import create_user, create_team, add_user_to_team, create_folder, \
     give_team_folder_read_rights
@@ -16,14 +16,14 @@ _LOG = logging.getLogger(__name__)
 
 def retrieve_gitlab_data(url, token, parent_group_id) -> Dict:
     gl = gitlab_auth(url, token)
-    return get_projects_and_members(gl, parent_group_id)
+    return get_groups_and_members(gl, parent_group_id)
 
 
-def generate_grafana_users(grafana_api: GrafanaFace, gitlab_projects_and_users) -> Dict:
+def generate_grafana_users(grafana_api: GrafanaFace, gitlab_groups_and_users) -> Dict:
     grafana_users = {}
 
-    for users in gitlab_projects_and_users.values():
-        for user in users:
+    for group in gitlab_groups_and_users.values():
+        for user in group['members']:
             username = user['username']
             if username not in grafana_users.keys():
                 new_user = User({
@@ -45,14 +45,14 @@ def generate_folders_and_assign_privileges(grafana_api: GrafanaFace, grafana_tea
     return grafana_teams
 
 
-def generate_teams_and_assign_users(grafana_api: GrafanaFace, gitlab_projects_and_users, grafana_users) -> Dict:
+def generate_teams_and_assign_users(grafana_api: GrafanaFace, gitlab_groups_and_users, grafana_users) -> Dict:
     teams = {}
-    for ((group_id, group_name), users) in gitlab_projects_and_users.items():
+    for (group_name, group_dict) in gitlab_groups_and_users.items():
         new_team = create_team(grafana_api, Team({"name": group_name}))
 
         team_members = []
         # Add all users to the team
-        for user in users:
+        for user in group_dict['members']:
             username = user['username']
             user_id = grafana_users[username]['grafana_id']
             add_user_to_team(grafana_api, user_id, new_team['teamId'])
@@ -63,7 +63,7 @@ def generate_teams_and_assign_users(grafana_api: GrafanaFace, gitlab_projects_an
         teams[group_name] = {
             "team_id": new_team['teamId'],
             "members": team_members,
-            "gitlab_group_id": group_id
+            "gitlab_group": group_dict,
         }
 
     return teams
@@ -77,12 +77,13 @@ def main() -> None:
 
     GRAFANA_API = grafana_auth(host='localhost:3000', username="admin", password="admin")
 
-    # create a user for each distinct user and get mapping from username to the user_id in grafana
-    gitlab_projects_and_users = retrieve_gitlab_data(URL, TOKEN, PARENT_GROUP_ID)
-    grafana_users = generate_grafana_users(GRAFANA_API, gitlab_projects_and_users)
-
-    grafana_teams = generate_teams_and_assign_users(GRAFANA_API, gitlab_projects_and_users, grafana_users)
-    # # create every team and folder with right privilegies. Then add the correct users to the grafana team
+    # get all gitlab members from the sub groups of PARENT_GROUP_ID
+    gitlab_groups_and_users = retrieve_gitlab_data(URL, TOKEN, PARENT_GROUP_ID)
+    # create a grafana user for all gitlab members
+    grafana_users = generate_grafana_users(GRAFANA_API, gitlab_groups_and_users)
+    # create a grafana team for each gitlab group and add the corresponding grafana users to the team
+    grafana_teams = generate_teams_and_assign_users(GRAFANA_API, gitlab_groups_and_users, grafana_users)
+    # create every team and folder with right privilegies. Then add the correct users to the grafana team
     grafana_teams = generate_folders_and_assign_privileges(GRAFANA_API, grafana_teams)
 
 
