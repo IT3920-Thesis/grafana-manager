@@ -1,0 +1,31 @@
+
+services:
+  db:
+    image: postgres:14
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: grafana
+      POSTGRES_PASSWORD: somepassword
+      POSTGRES_DB: grafana
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - postgresql-data:/var/lib/postgresql/data
+  grafana:
+    image: grafana/grafana:8.2.6
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-storage:/var/lib/grafana
+    depends_on:
+      - db
+    environment:
+      GF_DATABASE_TYPE: 'postgres'
+      GF_DATABASE_HOST: 'db:5432'
+      GF_DATABASE_NAME: 'grafana'
+      GF_DATABASE_USER: 'grafana'
+      GF_DATABASE_PASSWORD: 'somepassword'
+
+volumes:
+  grafana-storage:
+  postgresql-data:

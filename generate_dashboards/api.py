@@ -10,10 +10,16 @@ COMMIT_TYPE_CONTRIBUTIONS_SQL = '''SELECT * FROM crosstab(
         WHERE repository_id='randominternalproject002'
         GROUP BY author_email, type
         ORDER BY author_email, type $$)
-    AS final_result(author_email varchar, CONFIGURATION bigint, DOCUMENTATION bigint, FUNCTIONAL bigint, OTHER bigint, TEST bigint)'''
+    AS final_result(
+        author_email varchar,
+        CONFIGURATION bigint,
+        DOCUMENTATION bigint,
+        FUNCTIONAL bigint,
+        OTHER bigint,
+        TEST bigint)'''
 
 
-def get_dashboard_json(dashboard:Dashboard):
+def get_dashboard_json(dashboard: Dashboard):
     return json.dumps({
         "dashboard": dashboard.to_json_data(),
         "overwrite": True,
