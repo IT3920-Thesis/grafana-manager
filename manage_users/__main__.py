@@ -28,7 +28,7 @@ def generate_grafana_users(grafana_api, users: Dict[str, User]) -> Dict:
 
 def main() -> None:
     URL = "https://gitlab.stud.idi.ntnu.no/"
-    TOKEN = dotenv.get_key(".env", "GITLAB_ACCESS_TOKEN")
+    TOKEN = dotenv.get_key("../.env", "GITLAB_ACCESS_TOKEN")
     PARENT_GROUP_ID = 11911  # Mock project
     # PARENT_GROUP_ID = 1042    # IT2810-H2018
 
