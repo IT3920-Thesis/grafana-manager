@@ -143,6 +143,57 @@ def delete_all_teams(grafana_api: GrafanaFace):
         delete_team_by_id(grafana_api, team["id"])
         _LOG.info(f"Deleted team: {team['id']}")
 
+
+def create_folder(grafana_api: GrafanaFace, folder_title: str) -> Dict:
+    _LOG.info("Generating folder for")
+    return grafana_api.folder.create_folder(title=folder_title)
+
+
+def get_folder_by_uid(grafana_api: GrafanaFace, uid: str) -> Dict:
+    retrieved_folder = grafana_api.folder.get_folder(uid)
+    return retrieved_folder
+
+
+def get_all_folders(grafana_api: GrafanaFace) -> List[Dict]:
+    return grafana_api.folder.get_all_folders()
+
+
+def delete_folder_by_uid(grafana_api: GrafanaFace, uid: str):
+    try:
+        response = grafana_api.folder.delete_folder(uid)
+        _LOG.info(f'Folder uid:{uid}/id:{response["id"]} deleted')
+    except GrafanaException as ge:
+        _LOG.exception(f'Delete folder  uid:{uid} failed')
+        raise ge
+    return response
+
+
+def delete_all_folders(grafana_api: GrafanaFace):
+    _LOG.warning("Initiated deletion of all folder users")
+    folders = get_all_folders(grafana_api)
+    for folder in folders:
+        delete_folder_by_uid(grafana_api, folder['uid'])
+
+
+def update_folder_permissions(grafana_api: GrafanaFace, uid: str, permission_items):
+    grafana_api.folder.update_folder_permissions(uid, {"items": permission_items})
+
+
+def give_team_folder_read_rights(grafana_api: GrafanaFace, uid: str, team_id: int):
+    permission_items = [
+        {
+            "role": "Editor",
+            "permission": 1
+        },
+        {
+            "teamId": team_id,
+            "permission": 1
+        }
+    ]
+    update_folder_permissions(grafana_api, uid, permission_items)
+
+
 # GRAFANA_API = auth(host='localhost:3000', username="admin", password="admin")
 # delete_all_non_admin_users(GRAFANA_API)
 # delete_all_teams(GRAFANA_API)
+# delete_all_folders(GRAFANA_API)

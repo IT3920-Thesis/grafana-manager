@@ -6,7 +6,7 @@ import dotenv
 from manage_users.api.gitlab import auth as gitlab_auth
 from manage_users.api.gitlab import get_projects_and_members
 from manage_users.api.grafana import auth as grafana_auth
-from manage_users.api.grafana import create_user, create_team, add_user_to_team
+from manage_users.api.grafana import create_user, create_team, add_user_to_team, create_folder, give_team_folder_read_rights
 from manage_users.models import User, Team
 
 _LOG = logging.getLogger(__name__)
@@ -29,8 +29,8 @@ def generate_grafana_users(grafana_api, users: Dict[str, User]) -> Dict:
 def main() -> None:
     URL = "https://gitlab.stud.idi.ntnu.no/"
     TOKEN = dotenv.get_key("../.env", "GITLAB_ACCESS_TOKEN")
-    PARENT_GROUP_ID = 11911  # Mock project
-    # PARENT_GROUP_ID = 1042    # IT2810-H2018
+    # PARENT_GROUP_ID = 11911  # Mock project
+    PARENT_GROUP_ID = 1042    # IT2810-H2018
 
     projects_and_users = retrieve_gitlab_data(URL, TOKEN, PARENT_GROUP_ID)
 
@@ -54,14 +54,30 @@ def main() -> None:
     # create a user for each distinct user and get mapping from username to the user_id in grafana
     grafana_users = generate_grafana_users(GRAFANA_API, distinct_users)
 
-    # create every project and add the correct users to the grafana team
+    teams = {}
+
+    # create every team and folder with right privilegies. Then add the correct users to the grafana team
     for ((group_id, group_name), users) in projects_and_users.items():
-        new_team = create_team(GRAFANA_API, Team({"name": f"{group_name} [{group_id}]"}))
+        team_identifier = f"{group_name} [{group_id}]"
+        new_team = create_team(GRAFANA_API, Team({"name": team_identifier}))
+        new_folder = create_folder(GRAFANA_API, team_identifier)
+        give_team_folder_read_rights(GRAFANA_API, new_folder['uid'], new_team['teamId'])
+        team_members = []
         # Add all users to the team
         for user in users:
             username = user['username']
             user_id = grafana_users[username]['grafana_id']
             add_user_to_team(GRAFANA_API, user_id, new_team['teamId'])
+            team_members.append({
+                "username": username,
+                "user_id": user_id
+            })
+
+        teams[team_identifier] = {
+            "team_id": new_team['teamId'],
+            "folder_uid": new_folder['uid'],
+            "members": team_members
+        }
 
 
 if __name__ == "__main__":
