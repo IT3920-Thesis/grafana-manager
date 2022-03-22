@@ -13,7 +13,7 @@ def get_commits_per_commit_type_barchart(gitlab_group_name: str, panel_id: int):
                 FROM changecontribution
                 WHERE group_id='{gitlab_group_name}' AND author_email IN (${'{filter_users}'})
                 GROUP BY author_email, type
-                ORDER BY author_email, type 
+                ORDER BY author_email, type
             $$,
             $$
                 SELECT type
@@ -110,13 +110,69 @@ def get_accumulated_group_commits_time_series(gitlab_group_name: str, panel_id: 
     )
 
 
+def get_commit_size_bar_chart(gitlab_group_name: str, panel_id: int) -> BarChart:
+    return BarChart(
+        title="Number of commits per commit size",
+        dataSource="default",
+        id=panel_id,
+        targets=[
+            SqlTarget(
+                rawSql=f"""
+               SELECT * FROM crosstab(
+    $$
+        SELECT
+            author_email,
+            bucket,
+            COUNT(bucket)
+        FROM(
+            SELECT
+                author_email,
+                (CASE
+                    WHEN total_lines_added <= 50 THEN 'S'
+                    WHEN total_lines_added <= 100 THEN 'M'
+                    ELSE 'L'
+                END) as bucket
+                FROM (
+                    SELECT author_email, SUM(lines_added) AS total_lines_added
+                    FROM changecontribution
+                    WHERE
+                        group_id='{gitlab_group_name}' AND
+                        author_email IN (${'{filter_users}'}) AND
+                        type IN (${'{commit_types}'})
+                    GROUP BY commit_sha,author_email
+                    )AS distinct_commits
+                ) AS buckets_per_commit
+        GROUP BY author_email, bucket
+        ORDER BY author_email, bucket
+    $$,
+    $$
+        SELECT bucket
+        FROM (VALUES ('S'), ('M'), ('L')) T(bucket)
+    $$
+
+    ) AS final_result(
+        author_email varchar,
+        "S (< 50)" bigint,
+        "M (50-99)" bigint,
+        "L (100<)" bigint
+    )""",
+                refId="D",
+                format='table',
+            ),
+        ],
+        gridPos=GridPos(h=8, w=24, x=0, y=16),
+        editable=True,
+    )
+
+
 def get_folder_specific_json_dashboard(grafana_folder_uid, gitlab_group_name):
     dashboard = Dashboard(
         title=f"Main Dashboard [{gitlab_group_name}]",
         panels=[
             get_commits_per_commit_type_barchart(gitlab_group_name, 1),
             get_accumulated_lines_added_time_series(gitlab_group_name, 2),
-            get_accumulated_group_commits_time_series(gitlab_group_name, 3)
+            get_accumulated_group_commits_time_series(gitlab_group_name, 3),
+            get_commit_size_bar_chart(gitlab_group_name, 4)
         ],
         editable=True,
         schemaVersion=32,
@@ -134,7 +190,7 @@ def get_folder_specific_json_dashboard(grafana_folder_uid, gitlab_group_name):
                         WHERE group_id='{gitlab_group_name}'
                         """,
                     "type": "query"
-                },{
+                }, {
                     "multi": True,
                     "includeAll": True,
                     "name": "commit_types",
