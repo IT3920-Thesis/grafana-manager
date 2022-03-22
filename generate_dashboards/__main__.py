@@ -8,11 +8,23 @@ from manage_users.api.grafana import get_all_folders, auth as grafana_auth
 
 def get_commits_per_commit_type_barchart(gitlab_group_name: str, panel_id: int):
     COMMIT_PER_COMMIT_TYPE_SQL = f'''SELECT * FROM crosstab(
-            $$SELECT author_email, type, count(DISTINCT commit_sha)
-            FROM changecontribution
-            WHERE group_id='{gitlab_group_name}' AND author_email IN (${'{filter_users}'})
-            GROUP BY author_email, type
-            ORDER BY author_email, type $$)
+            $$
+                SELECT author_email, type, count(DISTINCT commit_sha)
+                FROM changecontribution
+                WHERE group_id='{gitlab_group_name}' AND author_email IN (${'{filter_users}'})
+                GROUP BY author_email, type
+                ORDER BY author_email, type 
+            $$,
+            $$
+                SELECT type
+                FROM (
+                    VALUES ('CONFIGURATION'),
+                    ('DOCUMENTATION'),
+                    ('FUNCTIONAL'),
+                    ('OTHER'),
+                    ('TEST')) T(type)
+            $$
+            )
         AS final_result(
             author_email varchar,
             CONFIGURATION bigint,
@@ -68,7 +80,7 @@ def get_accumulated_lines_added_time_series(gitlab_group_name: str, panel_id: in
     )
 
 
-def get_accumulated_group_commits_time_series(gitlab_group_name:str, panel_id:int):
+def get_accumulated_group_commits_time_series(gitlab_group_name: str, panel_id: int) -> TimeSeries:
     return TimeSeries(
         title="Group commit timeline",
         dataSource="default",
