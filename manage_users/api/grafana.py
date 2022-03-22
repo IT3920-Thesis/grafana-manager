@@ -13,7 +13,7 @@ cached_user_emails = set()
 
 def auth(host: str, username: str, password: str) -> GrafanaFace:
     _LOG.info(f'User {username} initiated auth to {host}')
-    return GrafanaFace(auth=(username, password), host=host)
+    return GrafanaFace(auth=(username, password), host=host, verify=False)
 
 
 def get_all_cached_users(grafana_api: GrafanaFace) -> Set:
