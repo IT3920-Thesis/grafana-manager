@@ -52,7 +52,7 @@ def get_accumulated_lines_added_time_series(gitlab_group_name: str, panel_id: in
                   "timestamp" AS "time",
                   author_email,
                   SUM(lines_added - lines_removed) OVER
-                    (PARTITION BY author_email ORDER BY "timestamp") AS acc_lines_added
+                    (PARTITION BY author_email ORDER BY "timestamp") AS "Accumulated lines added"
                 FROM changecontribution
                 WHERE type='FUNCTIONAL'
                     AND $__timeFilter("timestamp")
@@ -63,7 +63,37 @@ def get_accumulated_lines_added_time_series(gitlab_group_name: str, panel_id: in
             )
         ],
 
-        gridPos=GridPos(h=8, w=24, x=0, y=8),
+        gridPos=GridPos(h=8, w=12, x=0, y=8),
+        editable=True
+    )
+
+
+def get_accumulated_group_commits_time_series(gitlab_group_name:str, panel_id:int):
+    return TimeSeries(
+        title="Group commit timeline",
+        dataSource="default",
+        spanNulls=True,
+        id=panel_id,
+        targets=[
+            SqlTarget(
+                refId="D",
+                format="time_series",
+                rawSql=f"""
+                SELECT
+                    "time",
+                    SUM(COUNT(commit_sha)) OVER (ORDER BY "time") AS "Commit count"
+                FROM (
+                    SELECT
+                        DISTINCT commit_sha,
+                        "timestamp" AS "time"
+                    FROM changecontribution
+                    WHERE type='FUNCTIONAL' AND group_id='{gitlab_group_name}'
+                ) AS distinct_commits
+                GROUP BY "time"
+                """
+            )
+        ],
+        gridPos=GridPos(h=8, w=12, x=12, y=8),
         editable=True
     )
 
@@ -73,7 +103,8 @@ def get_folder_specific_json_dashboard(grafana_folder_uid, gitlab_group_name):
         title=f"Main Dashboard [{gitlab_group_name}]",
         panels=[
             get_commits_per_commit_type_barchart(gitlab_group_name, 1),
-            get_accumulated_lines_added_time_series(gitlab_group_name, 2)
+            get_accumulated_lines_added_time_series(gitlab_group_name, 2),
+            get_accumulated_group_commits_time_series(gitlab_group_name, 3)
         ],
         editable=True,
         schemaVersion=32,
