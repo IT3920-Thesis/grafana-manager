@@ -51,13 +51,13 @@ def get_accumulated_lines_added_time_series(gitlab_group_name: str, panel_id: in
                 SELECT
                   "timestamp" AS "time",
                   author_email,
-                  SUM(lines_added - lines_removed) OVER
+                  SUM(lines_added) OVER
                     (PARTITION BY author_email ORDER BY "timestamp") AS "Accumulated lines added"
                 FROM changecontribution
-                WHERE type='FUNCTIONAL'
-                    AND $__timeFilter("timestamp")
+                WHERE $__timeFilter("timestamp")
                     AND group_id='{gitlab_group_name}'
                     AND author_email IN (${'{filter_users}'})
+                    AND type IN (${'{commit_types}'})
                 ORDER BY 1
         """
             )
@@ -87,7 +87,7 @@ def get_accumulated_group_commits_time_series(gitlab_group_name:str, panel_id:in
                         DISTINCT commit_sha,
                         "timestamp" AS "time"
                     FROM changecontribution
-                    WHERE type='FUNCTIONAL' AND group_id='{gitlab_group_name}'
+                    WHERE group_id='{gitlab_group_name}' AND type IN (${'{commit_types}'})
                 ) AS distinct_commits
                 GROUP BY "time"
                 """
@@ -118,6 +118,18 @@ def get_folder_specific_json_dashboard(grafana_folder_uid, gitlab_group_name):
                     "description": "Choose which users to be included in the dashboard",
                     "query": f"""
                         SELECT DISTINCT author_email
+                        FROM changecontribution
+                        WHERE group_id='{gitlab_group_name}'
+                        """,
+                    "type": "query"
+                },{
+                    "multi": True,
+                    "includeAll": True,
+                    "name": "commit_types",
+                    "label": "Commit Types",
+                    "description": "Choose which commit types to be included in the dashboard",
+                    "query": f"""
+                        SELECT DISTINCT type
                         FROM changecontribution
                         WHERE group_id='{gitlab_group_name}'
                         """,
