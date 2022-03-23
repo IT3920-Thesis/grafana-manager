@@ -1,32 +1,36 @@
 import logging
 from typing import List, Dict
 
-from gitlab import Gitlab
+import requests
 
 _LOG = logging.getLogger(__name__)
 
 
-def auth(url: str, private_token: str) -> Gitlab:
-    gl = Gitlab(url=url, private_token=private_token, per_page=100)
-    gl.auth()
-    _LOG.info("Gitlab instance authenticated")
-    return gl
+def get_members_by_group_id(gitlab_token, group_id) -> List:
+    r = requests.get(
+        f"https://gitlab.stud.idi.ntnu.no/api/v4/groups/{group_id}/members/all",
+        verify=False,
+        headers={
+            "PRIVATE-TOKEN": gitlab_token},
+    )
+    return r.json()
 
 
-def get_members_by_group_id(gl: Gitlab, group_id: int) -> List:
-    return gl.groups.get(group_id).members.list()
+def get_subgroups_from_parent_group_id(gitlab_token, parent_group_id) -> List:
+    r = requests.get(
+        f"https://gitlab.stud.idi.ntnu.no/api/v4/groups/{parent_group_id}/subgroups",
+        verify=False,
+        headers={
+            "PRIVATE-TOKEN": gitlab_token
+        }
+    )
+    return r.json()
 
 
-def get_subgroups_from_parent_group_id(gl, parent_group_id) -> List[Dict]:
-    parent_group = gl.groups.get(parent_group_id)
-    subgroup_iterator = parent_group.subgroups.list(as_list=False)
-    return [subgroup for subgroup in subgroup_iterator]
-
-
-def get_groups_and_members(gl: Gitlab, parent_group_id: int) -> Dict:
+def get_groups_and_members(gitlab_token, parent_group_id: int) -> Dict:
     """
     Retrieves all subgroups and their members from a specific parent group
-    :param gl: an authenticated gitlab.Gitlab instance
+    :param gitlab_token: a gitlab access token
     :param parent_group_id: the id of the parent group
     :return: Dict({
         "group_id": int,
@@ -37,15 +41,15 @@ def get_groups_and_members(gl: Gitlab, parent_group_id: int) -> Dict:
     """
     groups = {}
 
-    for group in get_subgroups_from_parent_group_id(gl, parent_group_id):
+    for group in get_subgroups_from_parent_group_id(gitlab_token, parent_group_id):
         members = []
-        for member in get_members_by_group_id(gl, group.id):
-            members.append({"member_id": member.id, "username": member.username, "name": member.name})
+        for member in get_members_by_group_id(gitlab_token, group['id']):
+            members.append({"member_id": member['id'], "username": member['username'], "name": member['name']})
         group_dict = {
-            "group_id": group.id,
-            "group_name": group.name,
-            "parent_group_id": group.parent_id,
+            "group_id": group['id'],
+            "group_name": group['name'],
+            "parent_group_id": group['parent_id'],
             "members": members
         }
-        groups[group.name] = group_dict
+        groups[group['name']] = group_dict
     return groups

@@ -4,7 +4,6 @@ from typing import Dict
 import dotenv
 from grafana_api.grafana_face import GrafanaFace
 
-from manage_users.api.gitlab import auth as gitlab_auth
 from manage_users.api.gitlab import get_groups_and_members
 from manage_users.api.grafana import auth as grafana_auth
 from manage_users.api.grafana import create_user, create_team, add_user_to_team, create_folder, \
@@ -14,9 +13,8 @@ from manage_users.models import User, Team
 _LOG = logging.getLogger(__name__)
 
 
-def retrieve_gitlab_data(url, token, parent_group_id) -> Dict:
-    gl = gitlab_auth(url, token)
-    return get_groups_and_members(gl, parent_group_id)
+def retrieve_gitlab_data(gitlab_token, parent_group_id) -> Dict:
+    return get_groups_and_members(gitlab_token, parent_group_id)
 
 
 def generate_grafana_users(grafana_api: GrafanaFace, gitlab_groups_and_users) -> Dict:
@@ -70,7 +68,6 @@ def generate_teams_and_assign_users(grafana_api: GrafanaFace, gitlab_groups_and_
 
 
 def main() -> None:
-    URL = "https://gitlab.stud.idi.ntnu.no/"
     TOKEN = dotenv.get_key("../.env", "GITLAB_ACCESS_TOKEN")
     PARENT_GROUP_ID = 11911  # Mock project
     # PARENT_GROUP_ID = 1042  # IT2810-H2018
@@ -78,7 +75,7 @@ def main() -> None:
     GRAFANA_API = grafana_auth(host='localhost:3000', username="admin", password="admin")
 
     # get all gitlab members from the sub groups of PARENT_GROUP_ID
-    gitlab_groups_and_users = retrieve_gitlab_data(URL, TOKEN, PARENT_GROUP_ID)
+    gitlab_groups_and_users = retrieve_gitlab_data(TOKEN, PARENT_GROUP_ID)
     # create a grafana user for all gitlab members
     grafana_users = generate_grafana_users(GRAFANA_API, gitlab_groups_and_users)
     # create a grafana team for each gitlab group and add the corresponding grafana users to the team
