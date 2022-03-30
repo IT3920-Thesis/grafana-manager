@@ -1,6 +1,7 @@
 import typing
 
-from grafanalib.core import Dashboard, Time, Templating, GridPos, SqlTarget, TimeSeries, Threshold, Stat, RowPanel
+from grafanalib.core import Dashboard, Time, Templating, GridPos, SqlTarget, TimeSeries, Threshold, Stat, RowPanel, \
+    Table
 
 from generate_dashboards.custom_class import BarChart
 
@@ -44,8 +45,8 @@ def long_commit_titles(gitlab_group_name: str, pos: typing.Optional[GridPos]) ->
                 rawSql=query,
                 refId='A',
                 format='time_series',
-            )
-        ]
+            ),
+        ],
     )
 
 
@@ -79,6 +80,7 @@ def large_commits(gitlab_group_name: str, pos: typing.Optional[GridPos]) -> Stat
         decimals=0,
         noValue='none',
         extraJson={
+            # This didn't actually work
             'fieldConfig': {
                 'default': {
                     'unit': 'short',
@@ -110,6 +112,129 @@ def large_commits(gitlab_group_name: str, pos: typing.Optional[GridPos]) -> Stat
                 format='time_series',
             )
         ]
+    )
+
+    return panel
+
+
+def commit_table(gitlab_group_name: str, pos: typing.Optional[GridPos]) -> Table:
+    """
+    Presents a timeline overview of the comits
+    """
+    query = f'''
+    SELECT
+      commit_time AS time,
+      project_path as "Project",
+      title->>'raw'::varchar as "Title",
+      title->>'length' as "Title length",
+      size,
+      gitlab_issues_referenced as "Issues referenced"
+    FROM
+      commitaggregate
+    WHERE
+      group_id='{gitlab_group_name}' AND $__timeFilter(commit_time)
+    ORDER BY time DESC
+    '''
+
+    panel = Table(
+        title='Commits',
+        description='',
+        gridPos=pos,
+        transparent=True,
+        targets=[
+            SqlTarget(
+                rawSql=query,
+                refId='A',
+                format='time_series',
+            ),
+        ],
+        overrides=[
+            {
+                "matcher": {"id": "byName", "options": "size"},
+                "properties": [
+                    {
+                        "id": "custom.displayMode",
+                        "value": "color-background-solid"
+                    },
+                    {
+                        "id": "custom.width",
+                        "value": 100
+                    }
+                ]
+            },
+            {
+                "matcher": {"id": "byName", "options": "Issues referenced"},
+                "properties": [
+                    {
+                        "id": "custom.displayMode",
+                        "value": "json-view"
+                    },
+                    {
+                        "id": "custom.width",
+                        "value": 150
+                    }
+                ]
+            },
+            {
+                "matcher": {"id": "byName", "options": "Time"},
+                "properties": [
+                    {
+                        "id": "unit",
+                        "value": "dateTimeAsIso"
+                    },
+                    {
+                        "id": "custom.width",
+                        "value": 150
+                    }
+                ]
+            },
+            {
+                "matcher": {"id": "byName", "options": "Project"},
+                "properties": [
+                    {
+                        "id": "custom.width",
+                        "value": 200
+                    }
+                ]
+            },
+            {
+                "matcher": {"id": "byName", "options": "Title"},
+                "properties": [
+                    {
+                        "id": "custom.width",
+                        "value": 350
+                    },
+                    {
+                        "id": "unit",
+                        "value": "string"
+                    }
+                ]
+            },
+            {
+                "matcher": {"id": "byName", "options": "Title length"},
+                "properties": [
+                    {
+                        "id": "custom.displayMode",
+                        "value": "color-background-solid"
+                    },
+                    {
+                        "id": "custom.width",
+                        "value": 90
+                    },
+                    {
+                        "id": "thresholds",
+                        "value": {
+                            "mode": "absolute",
+                            "steps": [
+                                {"color": "orange", "value": None},
+                                {"color": "transparent", "value": 10},
+                                {"color": "orange", "value": 60}
+                            ]
+                        }
+                    }
+                ]
+            }
+        ],
     )
 
     return panel
@@ -275,6 +400,7 @@ def group_overview(gitlab_group_name) -> Dashboard:
         RowPanel(title="Red flags", gridPos=GridPos(y=0, x=0, h=1, w=24)),
         long_commit_titles(gitlab_group_name, pos=GridPos(y=0, x=0, h=4, w=4)),
         large_commits(gitlab_group_name, pos=GridPos(y=0, x=4, h=4, w=4)),
+        commit_table(gitlab_group_name, pos=GridPos(y=0, x=12, h=14, w=12)),
         RowPanel(title="Summary", gridPos=GridPos(y=1, x=0, h=1, w=24)),
         get_commits_per_commit_type_barchart(gitlab_group_name, pos=GridPos(y=1, x=0, h=8, w=24)),
         get_accumulated_lines_added_time_series(gitlab_group_name, pos=GridPos(y=8, x=0, h=8, w=12)),
