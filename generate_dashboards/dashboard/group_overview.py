@@ -1,4 +1,6 @@
-from grafanalib.core import Dashboard, Time, Templating, GridPos, SqlTarget, TimeSeries, Threshold, Stat
+import typing
+
+from grafanalib.core import Dashboard, Time, Templating, GridPos, SqlTarget, TimeSeries, Threshold, Stat, RowPanel
 
 from generate_dashboards.custom_class import BarChart
 
@@ -12,7 +14,7 @@ This is the dashboard presenting an overview to each Student group
 _LONG_COMMIT_TITLE_THRESHOLD_CHARACTERS = 60
 
 
-def long_commit_titles(gitlab_group_name: str) -> Stat:
+def long_commit_titles(gitlab_group_name: str, pos: typing.Optional[GridPos]) -> Stat:
     query = f'''
     SELECT
       $__timeGroup(commit_time, '1d') AS time,
@@ -28,13 +30,15 @@ def long_commit_titles(gitlab_group_name: str) -> Stat:
     '''
 
     return Stat(
-        id=panel_id,
         title='Commits with long Titles',
-        description='Commits that have more than 60 characters are considered long. Merge commits are discarded.\nhttps://gist.github.com/luismts/495d982e8c5b1a0ced4a57cf3d93cf60#write-good-commit-messages',
+        description='''Commits that have more than 60 characters are considered long.
+        Merge commits are discarded.\n
+        https://gist.github.com/luismts/495d982e8c5b1a0ced4a57cf3d93cf60#write-good-commit-messages
+        ''',
         dataSource='default',
         colorMode='background',
         graphMode='area',
-        gridPos=GridPos(x=0, y=0, h=4, w=4),
+        gridPos=pos,
         targets=[
             SqlTarget(
                 rawSql=query,
@@ -45,7 +49,7 @@ def long_commit_titles(gitlab_group_name: str) -> Stat:
     )
 
 
-def large_commits(gitlab_group_name: str) -> Stat:
+def large_commits(gitlab_group_name: str, pos: typing.Optional[GridPos]) -> Stat:
     query = f'''
     SELECT
       $__timeGroup(commit_time, '1d') AS time,
@@ -62,7 +66,12 @@ def large_commits(gitlab_group_name: str) -> Stat:
 
     panel = Stat(
         title='Large Commits',
-        description='This is determined by multiple factors. If only one file is changed, but contains a lot (> 800) of additions or deletions to the file, we consider it large. However, if a commit touches many files we also consider them large. Merge commits are ignored',
+        description='''
+        This is determined by multiple factors. If only one file is changed,
+        but contains a lot (> 800) of additions or deletions to the file,
+        we consider it large. However, if a commit touches many files we also consider them large
+        Merge commits are ignored.
+        ''',
         dataSource='default',
         colorMode='background',
         graphMode='area',
@@ -93,7 +102,7 @@ def large_commits(gitlab_group_name: str) -> Stat:
                 value=10.0,
             ),
         ],
-        gridPos=GridPos(x=4, y=0, h=4, w=4),
+        gridPos=pos,
         targets=[
             SqlTarget(
                 rawSql=query,
@@ -106,7 +115,7 @@ def large_commits(gitlab_group_name: str) -> Stat:
     return panel
 
 
-def get_commits_per_commit_type_barchart(gitlab_group_name: str, panel_id: int):
+def get_commits_per_commit_type_barchart(gitlab_group_name: str, pos: typing.Optional[GridPos]):
     COMMIT_PER_COMMIT_TYPE_SQL = f'''SELECT * FROM crosstab(
             $$
                 SELECT author_email, type, count(DISTINCT commit_sha)
@@ -136,7 +145,6 @@ def get_commits_per_commit_type_barchart(gitlab_group_name: str, panel_id: int):
     return BarChart(
         title="Number of commits per contribution type",
         dataSource="default",
-        id=panel_id,
         targets=[
             SqlTarget(
                 rawSql=COMMIT_PER_COMMIT_TYPE_SQL,
@@ -144,17 +152,16 @@ def get_commits_per_commit_type_barchart(gitlab_group_name: str, panel_id: int):
                 format='table',
             ),
         ],
-        gridPos=GridPos(h=8, w=24, x=0, y=0),
+        gridPos=pos,
         editable=True,
     )
 
 
-def get_accumulated_lines_added_time_series(gitlab_group_name: str, panel_id: int) -> TimeSeries:
+def get_accumulated_lines_added_time_series(gitlab_group_name: str, pos: typing.Optional[GridPos]) -> TimeSeries:
     return TimeSeries(
         title="Accumulated lines added per user",
         dataSource="default",
         spanNulls=True,
-        id=panel_id,
         targets=[
             SqlTarget(
                 refId="B",
@@ -175,17 +182,16 @@ def get_accumulated_lines_added_time_series(gitlab_group_name: str, panel_id: in
             )
         ],
 
-        gridPos=GridPos(h=8, w=12, x=0, y=8),
+        gridPos=pos,
         editable=True
     )
 
 
-def get_accumulated_group_commits_time_series(gitlab_group_name: str, panel_id: int) -> TimeSeries:
+def get_accumulated_group_commits_time_series(gitlab_group_name: str, pos: typing.Optional[GridPos]) -> TimeSeries:
     return TimeSeries(
         title="Group commit timeline",
         dataSource="default",
         spanNulls=True,
-        id=panel_id,
         targets=[
             SqlTarget(
                 refId="D",
@@ -205,16 +211,15 @@ def get_accumulated_group_commits_time_series(gitlab_group_name: str, panel_id: 
                 """
             )
         ],
-        gridPos=GridPos(h=8, w=12, x=12, y=8),
+        gridPos=pos,
         editable=True
     )
 
 
-def get_commit_size_bar_chart(gitlab_group_name: str, panel_id: int) -> BarChart:
+def get_commit_size_bar_chart(gitlab_group_name: str, pos: typing.Optional[GridPos]) -> BarChart:
     return BarChart(
         title="Number of commits per commit size",
         dataSource="default",
-        id=panel_id,
         targets=[
             SqlTarget(
                 rawSql=f"""
@@ -260,19 +265,21 @@ def get_commit_size_bar_chart(gitlab_group_name: str, panel_id: int) -> BarChart
                 format='table',
             ),
         ],
-        gridPos=GridPos(h=8, w=24, x=0, y=16),
+        gridPos=pos,
         editable=True,
     )
 
 
 def group_overview(gitlab_group_name) -> Dashboard:
     panels = [
-        long_commit_titles(gitlab_group_name),
-        large_commits(gitlab_group_name),
-        get_commits_per_commit_type_barchart(gitlab_group_name, 1),
-        get_accumulated_lines_added_time_series(gitlab_group_name, 2),
-        get_accumulated_group_commits_time_series(gitlab_group_name, 3),
-        get_commit_size_bar_chart(gitlab_group_name, 4)
+        RowPanel(title="Red flags", gridPos=GridPos(y=0, x=0, h=1, w=24)),
+        long_commit_titles(gitlab_group_name, pos=GridPos(y=0, x=0, h=4, w=4)),
+        large_commits(gitlab_group_name, pos=GridPos(y=0, x=4, h=4, w=4)),
+        RowPanel(title="Summary", gridPos=GridPos(y=1, x=0, h=1, w=24)),
+        get_commits_per_commit_type_barchart(gitlab_group_name, pos=GridPos(y=1, x=0, h=8, w=24)),
+        get_accumulated_lines_added_time_series(gitlab_group_name, pos=GridPos(y=8, x=0, h=8, w=12)),
+        get_accumulated_group_commits_time_series(gitlab_group_name, pos=GridPos(y=8, x=12, h=8, w=12)),
+        get_commit_size_bar_chart(gitlab_group_name, pos=GridPos(y=16, x=0, h=8, w=24)),
     ]
 
     for index, panel in enumerate(panels):
