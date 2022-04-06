@@ -2,8 +2,6 @@
 services:
   db:
     image: postgres:14
-    ports:
-      - "5432:5432"
     environment:
       POSTGRES_USER: grafana
       POSTGRES_PASSWORD: somepassword
@@ -20,6 +18,8 @@ services:
     depends_on:
       - db
     environment:
+      # It is by most easier to read text in light theme
+      GF_USERS_DEFAULT_THEME: 'light'
       GF_DATABASE_TYPE: 'postgres'
       GF_DATABASE_HOST: 'db:5432'
       GF_DATABASE_NAME: 'grafana'

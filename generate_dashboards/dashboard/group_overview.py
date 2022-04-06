@@ -1,9 +1,11 @@
 import typing
 
 from grafanalib.core import Dashboard, Time, Templating, GridPos, SqlTarget, TimeSeries, Threshold, Stat, RowPanel, \
-    Table
+    Table, Annotations
 
 from generate_dashboards.custom_class import BarChart
+from generate_dashboards.dashboard.util import rename_by_regex, annotate_with_milestones, sql_query, override_by_name, \
+    OverrideProperty, TimeSeriesSqlQuery, TableSqlQuery
 
 """
 This is the dashboard presenting an overview to each Student group
@@ -13,6 +15,14 @@ This is the dashboard presenting an overview to each Student group
 # The consensus are that around 50 characters are a good size
 # https://gist.github.com/luismts/495d982e8c5b1a0ced4a57cf3d93cf60#write-good-commit-messages
 _LONG_COMMIT_TITLE_THRESHOLD_CHARACTERS = 60
+
+CHANGE_TYPES = {
+    'FUNCTIONAL': '#dbdbdb',
+    'TEST': 'super-light-purple',
+    'CONFIGURATION': 'super-light-green',
+    'DOCUMENTATION': 'super-light-blue',
+    'OTHER': 'red',
+}
 
 
 def long_commit_titles(gitlab_group_name: str, pos: typing.Optional[GridPos]) -> Stat:
@@ -88,21 +98,9 @@ def large_commits(gitlab_group_name: str, pos: typing.Optional[GridPos]) -> Stat
             },
         },
         thresholds=[
-            Threshold(
-                index=0,
-                color='#a5a5a5',
-                value=0.0,
-            ),
-            Threshold(
-                index=1,
-                color='#EAB839',
-                value=2.0,
-            ),
-            Threshold(
-                index=2,
-                color='red',
-                value=10.0,
-            ),
+            Threshold(index=0, color='#a5a5a5', value=0.0),
+            Threshold(index=1, color='#EAB839', value=2.0),
+            Threshold(index=2, color='red', value=10.0),
         ],
         gridPos=pos,
         targets=[
@@ -112,6 +110,186 @@ def large_commits(gitlab_group_name: str, pos: typing.Optional[GridPos]) -> Stat
                 format='time_series',
             )
         ]
+    )
+
+    return panel
+
+
+def issues_without_description(gitlab_group_name: str, pos: typing.Optional[GridPos]) -> Stat:
+    query = f'''
+    SELECT
+      $__timeGroup(created_at, '1d') as "time",
+      COUNT(issue_iid) AS "value"
+    FROM
+      issueaggregate
+    WHERE
+      $__timeFilter(created_at) 
+      AND (description->'length')::numeric < 1
+      AND group_id = '{gitlab_group_name}'
+    GROUP BY "time"
+    '''
+
+    panel = Stat(
+        title='Issues without description',
+        description='''
+        Issues that lacks description can be difficult to understand by others
+        '''.strip(),
+        dataSource='default',
+        colorMode='background',
+        graphMode='area',
+        thresholdType='absolute',
+        decimals=0,
+        noValue='none',
+        extraJson={
+            # This didn't actually work
+            'fieldConfig': {
+                'default': {
+                    'unit': 'short',
+                },
+            },
+        },
+        thresholds=[
+            Threshold(index=0, color='super-light-green', value=0.0),
+            Threshold(index=1, color='orange', value=1.0),
+            Threshold(index=2, color='red', value=2.0),
+        ],
+        gridPos=pos,
+        targets=[
+            SqlTarget(
+                rawSql=query,
+                refId='A',
+                format='time_series',
+            )
+        ]
+    )
+
+    return panel
+
+
+def issues_with_short_titles(gitlab_group_name: str, pos: typing.Optional[GridPos]) -> Stat:
+    query = f'''
+    SELECT
+      $__timeGroup(created_at, '1d') as "time",
+      COUNT(issue_iid) AS "value"
+    FROM
+      issueaggregate
+    WHERE
+      $__timeFilter(created_at) 
+      AND array_length(string_to_array(title->>'raw'::varchar, ' '), 1) < 3
+      AND group_id = '{gitlab_group_name}'
+    GROUP BY "time"
+    '''.strip()
+
+    panel = Stat(
+        title='Issues with short titles',
+        description='''
+        Counts any title that have at most two words in it
+        '''.strip(),
+        dataSource='default',
+        colorMode='background',
+        graphMode='area',
+        thresholdType='absolute',
+        decimals=0,
+        noValue='None',
+        extraJson={
+            # This didn't actually work
+            'fieldConfig': {
+                'default': {
+                    'unit': 'short',
+                },
+            },
+        },
+        thresholds=[
+            Threshold(index=0, color='super-light-green', value=0.0),
+            Threshold(index=1, color='orange', value=1.0),
+            Threshold(index=2, color='red', value=10.0),
+        ],
+        gridPos=pos,
+        targets=[
+            SqlTarget(
+                rawSql=query,
+                refId='A',
+                format='time_series',
+            )
+        ]
+    )
+
+    return panel
+
+
+def _duplicated_commit_titles(gitlab_group_name: str, pos: typing.Optional[GridPos]) -> Table:
+    """
+    Presents a timeline overview of the comits
+    """
+    query = TableSqlQuery(f'''
+    SELECT
+      title->'raw' as "Commit Title",
+      project_path as "Project Path",
+      COUNT(commit_sha) AS "duplicates"
+    FROM
+      commitaggregate
+    WHERE
+      $__timeFilter(commit_time) AND group_id = '{gitlab_group_name}'
+    GROUP BY "Commit Title", "Project Path"
+    HAVING COUNT(commit_sha) > 1
+    ORDER BY duplicates desc
+    ''')
+
+    panel = Table(
+        title='Duplicate commit titles',
+        description='''
+        Titles that are identical in name. Too many of these may indicate problematic
+        commit practices.
+        '''.strip(),
+        gridPos=pos,
+        transparent=False,
+        targets=[query],
+        thresholds=[
+            Threshold(index=0, color='super-light-green', value=0.0),
+            Threshold(index=1, color='orange', value=2.0),
+            Threshold(index=2, color='red', value=4.0),
+        ],
+        overrides=[
+            override_by_name('duplicates', [
+                OverrideProperty(id='custom.displayMode', value='color-background'),
+                OverrideProperty(id='custom.width', value=150),
+            ]),
+            override_by_name('Project Path', [
+                OverrideProperty(id='custom.width', value=150),
+            ]),
+        ],
+    )
+
+    return panel
+
+
+def _changes_by_type(gitlab_group_name: str, pos: typing.Optional[GridPos]) -> TimeSeries:
+    label = 'value'
+    query = TimeSeriesSqlQuery(f'''
+    SELECT 
+      $__timeGroup("timestamp", '1w') as "time",
+      "type",
+      COUNT(commit_sha) as "{label}"
+    FROM changecontribution
+    WHERE group_id = '{gitlab_group_name}'
+    GROUP BY time, "type"
+    ORDER BY time ASC
+    ''')
+
+    panel = TimeSeries(
+        title='Changes by type',
+        description='''
+        '''.strip(),
+        gridPos=pos,
+        transparent=False,
+        targets=[query],
+        transformations=[rename_by_regex(label, '')],
+        overrides=[
+            override_by_name(name, [
+                OverrideProperty(id='color', value={'fixedColor': color, 'mode': 'fixed'}),
+            ])
+            for name, color in CHANGE_TYPES.items()
+        ],
     )
 
     return panel
@@ -149,91 +327,37 @@ def commit_table(gitlab_group_name: str, pos: typing.Optional[GridPos]) -> Table
             ),
         ],
         overrides=[
-            {
-                "matcher": {"id": "byName", "options": "size"},
-                "properties": [
-                    {
-                        "id": "custom.displayMode",
-                        "value": "color-background-solid"
-                    },
-                    {
-                        "id": "custom.width",
-                        "value": 100
-                    }
-                ]
-            },
-            {
-                "matcher": {"id": "byName", "options": "Issues referenced"},
-                "properties": [
-                    {
-                        "id": "custom.displayMode",
-                        "value": "json-view"
-                    },
-                    {
-                        "id": "custom.width",
-                        "value": 150
-                    }
-                ]
-            },
-            {
-                "matcher": {"id": "byName", "options": "Time"},
-                "properties": [
-                    {
-                        "id": "unit",
-                        "value": "dateTimeAsIso"
-                    },
-                    {
-                        "id": "custom.width",
-                        "value": 150
-                    }
-                ]
-            },
-            {
-                "matcher": {"id": "byName", "options": "Project"},
-                "properties": [
-                    {
-                        "id": "custom.width",
-                        "value": 200
-                    }
-                ]
-            },
-            {
-                "matcher": {"id": "byName", "options": "Title"},
-                "properties": [
-                    {
-                        "id": "custom.width",
-                        "value": 350
-                    },
-                    {
-                        "id": "unit",
-                        "value": "string"
-                    }
-                ]
-            },
-            {
-                "matcher": {"id": "byName", "options": "Title length"},
-                "properties": [
-                    {
-                        "id": "custom.displayMode",
-                        "value": "color-background-solid"
-                    },
-                    {
-                        "id": "custom.width",
-                        "value": 90
-                    },
-                    {
-                        "id": "thresholds",
-                        "value": {
-                            "mode": "absolute",
-                            "steps": [
-                                {"color": "orange", "value": None},
-                                {"color": "transparent", "value": 10},
-                                {"color": "orange", "value": 60}
-                            ]
-                        }
-                    }
-                ]
-            }
+            override_by_name('size', [
+                OverrideProperty(id='custom.displayMode', value='color-background-solid'),
+                OverrideProperty(id='custom.width', value=100),
+            ]),
+            override_by_name('Issues referenced', [
+                OverrideProperty(id='custom.displayMode', value='json-view'),
+                OverrideProperty(id='custom.width', value=150),
+            ]),
+            override_by_name('Time', [
+                OverrideProperty(id='unit', value='dateTimeAsIso'),
+                OverrideProperty(id='custom.width', value=150),
+            ]),
+            override_by_name('Project', [
+                OverrideProperty(id='custom.width', value=200),
+            ]),
+            override_by_name('Title', [
+                OverrideProperty(id='custom.width', value=350),
+                OverrideProperty(id='unit', value='string'),
+            ]),
+            override_by_name('Title length', [
+                OverrideProperty(id='custom.width', value=90),
+                OverrideProperty(id='custom.displayMode', value='color-background-solid'),
+                OverrideProperty(id='thresholds', value={
+                    'mode': 'absolute',
+                    'steps': [
+                        {'color': 'orange', 'value': None},
+                        {'color': 'transparent', 'value': 10},
+                        {'color': 'orange', 'value': 60},
+                    ],
+                }),
+            ]),
         ],
     )
 
@@ -282,49 +406,58 @@ def get_commits_per_commit_type_barchart(gitlab_group_name: str, pos: typing.Opt
     )
 
 
-def get_accumulated_lines_added_time_series(gitlab_group_name: str, pos: typing.Optional[GridPos]) -> TimeSeries:
+def accumulated_lines_contributed(gitlab_group_name: str, pos: typing.Optional[GridPos]) -> TimeSeries:
+    label = 'Accumulated lines contributed'
     return TimeSeries(
-        title="Accumulated lines added per user",
+        title="Accumulated lines contributed",
         dataSource="default",
         spanNulls=True,
+        lineWidth=2,
         targets=[
-            SqlTarget(
-                refId="B",
-                format="time_series",
-                rawSql=f"""
+            TimeSeriesSqlQuery(
+                sql=f"""
                 SELECT
                   "timestamp" AS "time",
                   author_email,
-                  SUM(lines_added) OVER
-                    (PARTITION BY author_email ORDER BY "timestamp") AS "Accumulated lines added"
+                  SUM(lines_added - lines_removed) OVER
+                    (PARTITION BY author_email ORDER BY "timestamp") AS "{label}"
                 FROM changecontribution
                 WHERE $__timeFilter("timestamp")
                     AND group_id='{gitlab_group_name}'
                     AND author_email IN (${'{filter_users}'})
                     AND type IN (${'{commit_types}'})
                 ORDER BY 1
-        """
+                """
             )
         ],
-
         gridPos=pos,
-        editable=True
+        editable=True,
+        # We don't want to include the static label for each value
+        # (more interested in author_email)
+        transformations=[rename_by_regex(label, '')]
     )
 
 
 def get_accumulated_group_commits_time_series(gitlab_group_name: str, pos: typing.Optional[GridPos]) -> TimeSeries:
+    label = 'Commit count'
     return TimeSeries(
-        title="Group commit timeline",
+        title="Total Commits accumulated",
+        description='Total number of commits accumulated by the student group',
         dataSource="default",
         spanNulls=True,
+        lineWidth=2,
+        overrides=[
+            override_by_name(label, [
+                OverrideProperty(id='color', value={'fixedColor': 'dark-blue', 'mode': 'fixed'}),
+            ]),
+        ],
+        transformations=[rename_by_regex(label, '')],
         targets=[
-            SqlTarget(
-                refId="D",
-                format="time_series",
-                rawSql=f"""
+            TimeSeriesSqlQuery(
+                sql=sql_query(f"""
                 SELECT
                     "time",
-                    SUM(COUNT(commit_sha)) OVER (ORDER BY "time") AS "Commit count"
+                    SUM(COUNT(commit_sha)) OVER (ORDER BY "time") AS "{label}"
                 FROM (
                     SELECT
                         DISTINCT commit_sha,
@@ -333,7 +466,7 @@ def get_accumulated_group_commits_time_series(gitlab_group_name: str, pos: typin
                     WHERE group_id='{gitlab_group_name}' AND type IN (${'{commit_types}'})
                 ) AS distinct_commits
                 GROUP BY "time"
-                """
+                """)
             )
         ],
         gridPos=pos,
@@ -346,8 +479,8 @@ def get_commit_size_bar_chart(gitlab_group_name: str, pos: typing.Optional[GridP
         title="Number of commits per commit size",
         dataSource="default",
         targets=[
-            SqlTarget(
-                rawSql=f"""
+            TableSqlQuery(
+                sql=f"""
                SELECT * FROM crosstab(
     $$
         SELECT
@@ -386,8 +519,6 @@ def get_commit_size_bar_chart(gitlab_group_name: str, pos: typing.Optional[GridP
         "M (50-99)" bigint,
         "L (100<)" bigint
     )""",
-                refId="D",
-                format='table',
             ),
         ],
         gridPos=pos,
@@ -400,10 +531,18 @@ def group_overview(gitlab_group_name) -> Dashboard:
         RowPanel(title="Red flags", gridPos=GridPos(y=0, x=0, h=1, w=24)),
         long_commit_titles(gitlab_group_name, pos=GridPos(y=0, x=0, h=4, w=4)),
         large_commits(gitlab_group_name, pos=GridPos(y=0, x=4, h=4, w=4)),
-        commit_table(gitlab_group_name, pos=GridPos(y=0, x=12, h=14, w=12)),
-        RowPanel(title="Summary", gridPos=GridPos(y=1, x=0, h=1, w=24)),
+        _duplicated_commit_titles(gitlab_group_name, pos=GridPos(y=4, x=0, w=8, h=6)),
+
+        issues_without_description(gitlab_group_name, pos=GridPos(y=0, x=12, h=4, w=4)),
+        issues_with_short_titles(gitlab_group_name, pos=GridPos(y=0, x=16, h=4, w=4)),
+
+        _changes_by_type(gitlab_group_name, pos=GridPos(y=0, x=12, w=10, h=8)),
+
+        commit_table(gitlab_group_name, pos=GridPos(y=14, x=12, h=14, w=12)),
+
+        RowPanel(title="Summary", gridPos=GridPos(y=20, x=0, h=1, w=24)),
         get_commits_per_commit_type_barchart(gitlab_group_name, pos=GridPos(y=1, x=0, h=8, w=24)),
-        get_accumulated_lines_added_time_series(gitlab_group_name, pos=GridPos(y=8, x=0, h=8, w=12)),
+        accumulated_lines_contributed(gitlab_group_name, pos=GridPos(y=8, x=0, h=8, w=12)),
         get_accumulated_group_commits_time_series(gitlab_group_name, pos=GridPos(y=8, x=12, h=8, w=12)),
         get_commit_size_bar_chart(gitlab_group_name, pos=GridPos(y=16, x=0, h=8, w=24)),
     ]
@@ -412,11 +551,15 @@ def group_overview(gitlab_group_name) -> Dashboard:
         panels[index].id = index
 
     dashboard = Dashboard(
-        title=f"Main Dashboard [{gitlab_group_name}]",
+        title=f"Overview",
+        version=1000,
         panels=panels,
         editable=True,
         schemaVersion=32,
-        time=Time(start="now-1y", end="now"),
+        time=Time(start="now-5y", end="now"),
+        annotations=Annotations(
+            list=[annotate_with_milestones(gitlab_group_name, color='super-light-purple')],
+        ),
         templating=Templating(
             list=[{
                 "multi": True,
@@ -424,11 +567,11 @@ def group_overview(gitlab_group_name) -> Dashboard:
                 "name": "filter_users",
                 "label": "Filter users",
                 "description": "Choose which users to be included in the dashboard",
-                "query": f"""
+                "query": sql_query(f"""
                         SELECT DISTINCT author_email
                         FROM changecontribution
                         WHERE group_id='{gitlab_group_name}'
-                        """,
+                        """),
                 "type": "query"
             }, {
                 "multi": True,
@@ -440,10 +583,125 @@ def group_overview(gitlab_group_name) -> Dashboard:
                         SELECT DISTINCT type
                         FROM changecontribution
                         WHERE group_id='{gitlab_group_name}'
-                        """,
+                        """.strip(),
                 "type": "query"
             }
             ])
     )
 
     return dashboard
+
+# Time Taken on issue
+#     {
+#       "datasource": null,
+#       "fieldConfig": {
+#         "defaults": {
+#           "color": {
+#             "mode": "thresholds"
+#           },
+#           "custom": {
+#             "axisLabel": "",
+#             "axisPlacement": "auto",
+#             "axisSoftMin": 1,
+#             "fillOpacity": 99,
+#             "gradientMode": "none",
+#             "hideFrom": {
+#               "legend": false,
+#               "tooltip": false,
+#               "viz": false
+#             },
+#             "lineWidth": 0
+#           },
+#           "decimals": 0,
+#           "mappings": [],
+#           "thresholds": {
+#             "mode": "absolute",
+#             "steps": [
+#               {
+#                 "color": "blue",
+#                 "value": null
+#               },
+#               {
+#                 "color": "#EAB839",
+#                 "value": 1209600
+#               },
+#               {
+#                 "color": "red",
+#                 "value": 5184000
+#               }
+#             ]
+#           },
+#           "unit": "s"
+#         },
+#         "overrides": []
+#       },
+#       "gridPos": {
+#         "h": 16,
+#         "w": 17,
+#         "x": 7,
+#         "y": 16
+#       },
+#       "id": 10,
+#       "options": {
+#         "barWidth": 0.56,
+#         "groupWidth": 0.7,
+#         "legend": {
+#           "calcs": [],
+#           "displayMode": "hidden",
+#           "placement": "bottom"
+#         },
+#         "orientation": "horizontal",
+#         "showValue": "auto",
+#         "stacking": "none",
+#         "text": {},
+#         "tooltip": {
+#           "mode": "single"
+#         }
+#       },
+#       "targets": [
+#         {
+#           "format": "table",
+#           "group": [],
+#           "metricColumn": "none",
+#           "rawQuery": true,
+#           "rawSql": "SELECT\n  $__timeGroup(created_at, '1d') as \"time\",\n  CONCAT('#', issue_iid, ' ', title->>'raw') as \"Issue\",\n  now() as \"closed_at\",\n  case\n    -- 14 days in seconds\n    when issue_iid < 12 then 1209600\n    else EXTRACT(EPOCH FROM (now() - created_at))\n  end as \"value\"\nFROM\n  issueaggregate\nWHERE\n  $__timeFilter(created_at)\n",
+#           "refId": "A",
+#           "select": [
+#             [
+#               {
+#                 "params": [
+#                   "value"
+#                 ],
+#                 "type": "column"
+#               }
+#             ]
+#           ],
+#           "timeColumn": "time",
+#           "where": [
+#             {
+#               "name": "$__timeFilter",
+#               "params": [],
+#               "type": "macro"
+#             }
+#           ]
+#         }
+#       ],
+#       "title": "Time spent on issue",
+#       "transformations": [
+#         {
+#           "id": "convertFieldType",
+#           "options": {
+#             "conversions": [],
+#             "fields": {}
+#           }
+#         },
+#         {
+#           "id": "renameByRegex",
+#           "options": {
+#             "regex": "value",
+#             "renamePattern": "Time taken"
+#           }
+#         }
+#       ],
+#       "type": "barchart"
+#     },

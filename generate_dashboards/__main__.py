@@ -14,7 +14,8 @@ def main():
 
     for folder in all_folders:
         overview = get_dashboard_json(group_overview(folder['title']), folder_uid=folder['uid'])
-        upload_to_grafana(overview, SERVER, API_KEY, verify=True)
+        res = upload_to_grafana(overview, SERVER, API_KEY, verify=True)
+        print(res)
 
 
 if __name__ == "__main__":
